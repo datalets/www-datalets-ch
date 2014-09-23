@@ -1,0 +1,2 @@
+
+AddHandler php5-fastcgi .php .php5
