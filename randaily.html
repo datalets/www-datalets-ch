@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Random Reminder Generator – Proton Calendar & Lumo</title>
+
+<!-- Picnic CSS – a tiny, responsive stylesheet -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/picnic">
+<style>
+  /* Minor tweaks on top of Picnic */
+  body {font-family:Arial,Helvetica,sans-serif; margin:2rem;}
+  h1, h2 {margin-top:0;}
+  .container {max-width:960px; margin:auto;}
+  .card {padding:1.5rem; margin-bottom:1.5rem; border-radius:4px;}
+  #log {white-space:pre-wrap; background:#fafafa; border:1px solid #ddd; padding:0.8rem;}
+  .slider-container {display:flex; align-items:center; gap:0.5rem;}
+  .slider-value {width:2.5rem; text-align:center;}
+  footer {margin-top:2rem; font-size:0.9rem; color:#555;}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ==================== Banner ==================== -->
+  <section class="card warning">
+    <h2>💡 Quick reminder for Proton Calendar & Lumo fans!</h2>
+    <p>
+      Want a gentle nudge each day to chat with <strong>Proton Lumo</strong>?
+      Use this tiny generator to create a month (or any number of future days)
+      of random events, then import the <code>.ics</code> file into
+      <strong>Proton Calendar</strong>.  Every event becomes a reminder that
+      pops up at a random time within the window you choose – perfect for
+      building a habit of daily AI interaction while keeping everything
+      private.
+    </p>
+    <p>
+      <strong>Tip:</strong> After importing, enable desktop or mobile
+      notifications in Proton Calendar so you’ll get the reminder exactly when
+      the event fires.
+    </p>
+  </section>
+
+  <!-- ==================== Generator UI ==================== -->
+  <section class="card">
+    <h1>Random Future Calendar Generator</h1>
+
+    <label>
+      Start date (defaults to today):
+      <input type="date" id="startDate">
+    </label>
+
+    <label>
+      Number of days ahead (including the start date):
+      <input type="number" id="futureDays" min="1" max="365" value="30">
+    </label>
+
+    <label>
+      Events per day:
+      <input type="number" id="perDay" min="0" max="10" value="1">
+    </label>
+
+    <label>
+      Event title prefix:
+      <input type="text" id="titlePrefix" value="Daily Lumo Check‑in">
+    </label>
+
+    <label>
+      Earliest &amp; latest hour (0‑23):
+      <div class="slider-container">
+        <input type="range" id="earliest" min="0" max="23" value="9">
+        <span class="slider-value" id="earliestVal">9</span>h
+        <span style="margin:0 0.5rem;">–</span>
+        <input type="range" id="latest"   min="0" max="23" value="17">
+        <span class="slider-value" id="latestVal">17</span>h
+      </div>
+    </label>
+
+    <button class="primary" id="generateBtn">Generate &amp; Download .ics</button>
+
+    <div id="log"></div>
+  </section>
+
+  <!-- ==================== Footer ==================== -->
+  <footer>
+    <p>
+      © 2025 <strong>Proton Lumo</strong> – released under the
+      <a href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a>.
+      The source code for this mini‑app is available on
+      <a href="https://github.com/ProtonLumo/random-reminder-generator" target="_blank">GitHub</a>.
+    </p>
+    <p>
+      For support, visit
+      <a href="https://proton.me/support/lumo" target="_blank">Lumo Support</a> or
+      <a href="https://proton.me/support/calendar" target="_blank">Calendar Support</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+// ------------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------------
+function pad2(n){return n<10?'0'+n:n;}
+
+// Initialise date picker to today (ISO format yyyy‑mm‑dd)
+document.getElementById('startDate').value =
+  new Date().toISOString().split('T')[0];
+
+// Keep slider displays in sync
+function syncSliderDisplays(){
+  document.getElementById('earliestVal').textContent = document.getElementById('earliest').value;
+  document.getElementById('latestVal').textContent   = document.getElementById('latest').value;
+}
+document.getElementById('earliest').addEventListener('input', syncSliderDisplays);
+document.getElementById('latest').addEventListener('input', syncSliderDisplays);
+syncSliderDisplays();
+
+// ------------------------------------------------------------------
+// iCalendar builder
+// ------------------------------------------------------------------
+function buildICS(events){
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//RandomFutureGenerator//EN',
+    'CALSCALE:GREGORIAN'
+  ];
+  events.forEach(ev => {
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:' + ev.uid);
+    lines.push('DTSTAMP:' + ev.dtstamp);
+    lines.push('DTSTART:' + ev.dtstart);
+    lines.push('DTEND:'   + ev.dtend);
+    lines.push('SUMMARY:' + ev.summary);
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+// ------------------------------------------------------------------
+// Core event generator
+// ------------------------------------------------------------------
+function generateEvents(startDate, daysAhead, perDay, titlePrefix,
+                        earliestHour, latestHour){
+
+  const events = [];
+
+  // Ensure earliest <= latest (swap if needed)
+  if (earliestHour > latestHour) {
+    const t = earliestHour; earliestHour = latestHour; latestHour = t;
+  }
+
+  for (let offset = 0; offset < daysAhead; offset++) {
+    const cur = new Date(startDate);
+    cur.setDate(cur.getDate() + offset); // move forward
+
+    for (let i = 0; i < perDay; i++) {
+      // Random hour inside allowed window
+      const startHour = Math.floor(
+        Math.random() * (latestHour - earliestHour + 1)
+      ) + earliestHour;
+      const startMin = Math.floor(Math.random() * 60);
+      const durationMin = 15 + Math.floor(Math.random() * 166); // 15‑180 min
+
+      const dtStart = new Date(cur.getFullYear(),
+                               cur.getMonth(),
+                               cur.getDate(),
+                               startHour,
+                               startMin);
+      const dtEnd = new Date(dtStart.getTime() + durationMin * 60000);
+
+      const uid = crypto.randomUUID();
+      const fmt = d => d.getUTCFullYear() +
+                       pad2(d.getUTCMonth()+1) +
+                       pad2(d.getUTCDate()) + 'T' +
+                       pad2(d.getUTCHours()) +
+                       pad2(d.getUTCMinutes()) + '00Z';
+
+      events.push({
+        uid: uid,
+        dtstamp: fmt(new Date()),
+        dtstart: fmt(dtStart),
+        dtend:   fmt(dtEnd),
+        summary: `${titlePrefix} ${cur.toLocaleDateString()} #${i+1}`
+      });
+    }
+  }
+  return events;
+}
+
+// ------------------------------------------------------------------
+// Button click handler
+// ------------------------------------------------------------------
+document.getElementById('generateBtn').addEventListener('click', () => {
+  const startDateStr = document.getElementById('startDate').value;
+  const daysAhead    = parseInt(document.getElementById('futureDays').value,10);
+  const perDay       = parseInt(document.getElementById('perDay').value,10);
+  const titlePref    = document.getElementById('titlePrefix').value.trim() ||
+                       'Random Event';
+  const earliest     = parseInt(document.getElementById('earliest').value,10);
+  const latest       = parseInt(document.getElementById('latest').value,10);
+
+  if (!startDateStr || isNaN(daysAhead) || isNaN(perDay) ||
+      isNaN(earliest) || isNaN(latest)) {
+    alert('Please fill in all fields with valid numbers.');
+    return;
+  }
+
+  const startDate = new Date(startDateStr); // local midnight of chosen day
+
+  const events = generateEvents(startDate, daysAhead, perDay,
+                                titlePref, earliest, latest);
+
+  const icsContent = buildICS(events);
+  const blob = new Blob([icsContent], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `random-${startDateStr}-${daysAhead}d.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  const log = document.getElementById('log');
+  log.textContent =
+    `✅ Generated ${events.length} event(s) from ${startDateStr} for ${daysAhead} day(s).\n`+
+    `⏰ Hours allowed: ${earliest}:00‑${latest}:59\n`+
+    `📁 File: random-${startDateStr}-${daysAhead}d.ics`;
+});
+</script>
+
+</body>
+</html>
